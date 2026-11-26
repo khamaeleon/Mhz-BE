@@ -10,8 +10,8 @@
 ```
 DailyNews 서버 (EC2)                 DB 서버 (EC2-AdPilot-DB)
 ┌──────────────────────────┐        ┌──────────────────────┐
-│ nginx → mhz-api (:4100)  │──VPC──▶│ PostgreSQL 17        │
-│ cron  → crawl schedule/songs │    │  DB: mhz / mhz_app   │
+│ nginx → api 컨테이너     │──VPC──▶│ PostgreSQL 17        │
+│ crawler 컨테이너(수집기) │        │  DB: mhz / mhz_app   │
 └──────────────────────────┘        └──────────────────────┘
 ```
 
@@ -20,9 +20,11 @@ db/migrations/001_init.sql   # 테이블 8개
 db/seed.sql                  # 채널 8개, 앱 설정 기본값
 scripts/migrate.js           # 마이그레이션 + seed 적용 (여러 번 실행해도 안전)
 src/server.js                # API (Fastify)
-src/crawl/run.js             # 수집기 (cron 이 실행)
+src/crawl/run.js             # 수집기 1회 실행
+src/crawl/scheduler.js       # 수집 일정 (crawler 컨테이너)
+Dockerfile, docker-compose.yml
 src/crawl/sources/*.js       # 방송사별 수집 로직 (TODO)
-deploy/                      # PM2 / systemd / nginx 설정 예시
+deploy/nginx-mhz.conf        # nginx 프록시 예시
 ```
 
 ## API
@@ -68,38 +70,46 @@ sudo -u postgres psql -c "SELECT pg_reload_conf();"
 
 보안 그룹은 DailyNews 서버가 이미 5432로 접속하고 있으므로 추가할 필요가 없습니다.
 
-### 2. DailyNews 서버: API 서버 설치
+### 2. DailyNews 서버: Docker Compose로 띄우기
 
-Node.js 20.6 이상이 필요합니다.
+Docker와 Docker Compose 플러그인이 필요합니다.
 
 ```bash
 git clone https://github.com/khamaeleon/MHz-BE.git && cd MHz-BE
-npm install --omit=dev
-cp .env.example .env && vi .env      # DATABASE_URL 비밀번호 입력
-npm run migrate                      # 테이블 + 채널 8개 생성
-npm start                            # 동작 확인 후 Ctrl+C
+cp .env.example .env && vi .env                    # DATABASE_URL 비밀번호 입력
+docker compose build
+docker compose run --rm api node scripts/migrate.js # 테이블 + 채널 8개 생성 (처음 한 번)
+docker compose up -d
+curl http://127.0.0.1:4100/health                   # {"ok":true}
 curl http://127.0.0.1:4100/channels
 ```
 
-상시 실행은 DailyNews와 같은 방식으로 합니다.
+비밀번호에 `@ : / ? #` 같은 문자가 있으면 `DATABASE_URL`에 넣을 때 URL 인코딩해야 합니다(예: `@` → `%40`).
 
-- PM2: `pm2 start deploy/ecosystem.config.cjs && pm2 save`
-- systemd: `deploy/mhz-api.service` 참고
+| 컨테이너 | 하는 일 |
+| --- | --- |
+| `api` | API 서버. 호스트의 `127.0.0.1:4100`에만 열림 (포트는 `.env`의 `MHZ_PORT`로 변경) |
+| `crawler` | 수집기. 선곡표는 5분마다, 편성표는 매일 04:00(KST)과 컨테이너 시작 직후 |
 
-외부(앱)에서 접근하려면 nginx에 `deploy/nginx-mhz.conf`처럼 프록시를 추가하고 HTTPS를 붙입니다.
+자주 쓰는 명령:
 
-### 3. 수집 일정 (cron)
-
-`crontab -e`에 추가합니다(경로는 실제 위치로).
-
-```cron
-# 편성표: 매일 04:00 (서버 시간대가 UTC면 0 19 * * *)
-0 4 * * *   cd /home/ec2-user/MHz-BE && /usr/bin/npm run -s crawl:schedule >> logs/crawl.log 2>&1
-# 선곡표: 5분마다
-*/5 * * * * cd /home/ec2-user/MHz-BE && /usr/bin/npm run -s crawl:songs >> logs/crawl.log 2>&1
+```bash
+docker compose logs -f api crawler                 # 로그
+git pull && docker compose up -d --build           # 업데이트
+docker compose run --rm api node scripts/migrate.js # 스키마가 바뀐 뒤
 ```
 
-(`mkdir -p logs` 먼저)
+### 3. 외부 공개 (nginx)
+
+앱이 API에 접근하려면 DailyNews 서버의 nginx에 `deploy/nginx-mhz.conf`처럼 프록시를 추가하고 HTTPS를 붙입니다. nginx도 컨테이너로 돌고 있다면 `proxy_pass`를 `http://host.docker.internal:4100` 등 그 환경에 맞게 바꿉니다.
+
+### 로컬 개발 (도커 없이)
+
+```bash
+npm install
+cp .env.example .env
+npm run migrate && npm run dev
+```
 
 ## 남은 일
 
