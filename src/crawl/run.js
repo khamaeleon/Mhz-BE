@@ -2,15 +2,17 @@
 //
 //   node --env-file=.env src/crawl/run.js schedule   편성표: 오늘부터 7일치 (하루 1회)
 //   node --env-file=.env src/crawl/run.js songs      선곡표: 최근 선곡 (5분마다)
+//   node --env-file=.env src/crawl/run.js songs mbc  선곡표: 특정 방송사만 (MBC 는 1분마다)
 //
-// 방송사별 수집 원본은 아직 미정이라 sources/ 의 TODO 를 채우면 된다.
+// 방송사별 수집 방법은 sources/ 와 docs/data-sources.md 참고.
 
 import { pool, query, queryOne } from '../db.js';
 import { getSource } from './sources/index.js';
 
 const job = process.argv[2];
+const onlyBroadcaster = process.argv[3] ?? null;
 if (job !== 'schedule' && job !== 'songs') {
-  console.error('사용법: node src/crawl/run.js schedule|songs');
+  console.error('사용법: node src/crawl/run.js schedule|songs [방송사]');
   process.exit(1);
 }
 
@@ -91,10 +93,14 @@ async function crawlSongs(channels) {
   return result;
 }
 
-const run = await queryOne(`insert into crawl_runs (job) values ($1) returning id`, [job]);
+const jobName = onlyBroadcaster ? `${job}:${onlyBroadcaster}` : job;
+const run = await queryOne(`insert into crawl_runs (job) values ($1) returning id`, [jobName]);
 try {
   const channels = await query(
-    `select id, broadcaster, resolver_params from channels where is_active order by sort_order`,
+    `select id, broadcaster, resolver_params from channels
+      where is_active and ($1::text is null or broadcaster = $1)
+      order by sort_order`,
+    [onlyBroadcaster],
   );
   const detail = job === 'schedule' ? await crawlSchedule(channels) : await crawlSongs(channels);
   const failed = Object.values(detail).some((v) => typeof v === 'string');
@@ -103,7 +109,7 @@ try {
     failed ? 'error' : 'ok',
     detail,
   ]);
-  console.log(JSON.stringify({ job, detail }));
+  console.log(JSON.stringify({ job: jobName, detail }));
   process.exitCode = failed ? 1 : 0;
 } catch (e) {
   await query(`update crawl_runs set status = 'error', finished_at = now(), detail = $2 where id = $1`, [

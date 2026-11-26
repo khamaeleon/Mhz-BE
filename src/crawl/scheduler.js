@@ -1,5 +1,5 @@
 // 수집기 스케줄러 (docker-compose 의 crawler 컨테이너가 실행)
-//   선곡표: 시작 직후 + 5분마다
+//   선곡표: 시작 직후 + 5분마다 (MBC 는 지금 나오는 곡만 주는 API 라 1분마다 따로)
 //   편성표: 시작 직후 + 매일 04:00 (KST)
 // 같은 작업이 아직 돌고 있으면 이번 회차는 건너뛴다.
 
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), 'run.js');
 const SONGS_INTERVAL_MS = 5 * 60_000;
+const MBC_SONGS_INTERVAL_MS = 60_000;
 const SCHEDULE_HOUR_KST = 4;
 const KST_MS = 9 * 3600_000;
 
@@ -19,18 +20,19 @@ function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
-function runJob(job) {
-  if (running.has(job)) {
-    log(`${job}: 이전 실행이 아직 끝나지 않아 건너뜀`);
+function runJob(job, ...args) {
+  const key = [job, ...args].join(':');
+  if (running.has(key)) {
+    log(`${key}: 이전 실행이 아직 끝나지 않아 건너뜀`);
     return Promise.resolve();
   }
-  running.add(job);
+  running.add(key);
   const started = Date.now();
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [RUNNER, job], { stdio: 'inherit', env: process.env });
+    const child = spawn(process.execPath, [RUNNER, job, ...args], { stdio: 'inherit', env: process.env });
     child.on('exit', (code) => {
-      running.delete(job);
-      log(`${job}: 종료 code=${code} (${Math.round((Date.now() - started) / 1000)}s)`);
+      running.delete(key);
+      log(`${key}: 종료 code=${code} (${Math.round((Date.now() - started) / 1000)}s)`);
       resolve();
     });
   });
@@ -60,6 +62,7 @@ log('스케줄러 시작');
 runJob('schedule');
 runJob('songs');
 timers.push(setInterval(() => runJob('songs'), SONGS_INTERVAL_MS));
+timers.push(setInterval(() => runJob('songs', 'mbc'), MBC_SONGS_INTERVAL_MS));
 scheduleDaily();
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
