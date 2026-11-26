@@ -153,7 +153,7 @@ app.get('/search', async (req, reply) => {
 
   const [channels, programs] = await Promise.all([
     query(
-      `select id, name, frequency, logo_url from channels
+      `select id, name, frequency, frequency_band, logo_url from channels
         where is_active and name ilike $1 order by sort_order`,
       [pattern],
     ),

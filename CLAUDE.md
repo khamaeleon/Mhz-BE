@@ -24,4 +24,6 @@
 - API·마이그레이션·수집기 뼈대 완료. SQL은 로컬 PostgreSQL 16으로 검증했다.
 - 아직 서버 배포 전. DailyNews 서버의 nginx 구성(호스트/컨테이너)과 API 도메인은 미정.
 - package-lock.json 이 아직 없다. 첫 npm install 후 커밋하고 Dockerfile 을 npm ci 로 바꾼다.
+- 채널 30개(3사 + EBS·CBS·TBS·TBN·종교·공영 등). `002_more_channels.sql` 로 방송사 제약을 넓히고 `frequency` null 허용·`frequency_band`(FM/AM) 추가. seed 는 앱 `channels.ts` 와 같은 값으로 덮어쓴다. SQL은 PGlite(Postgres WASM)로 검증했다.
+- 수집 원본은 kbs·mbc·sbs 만 있다. 나머지 방송사는 `getSource()` 가 빈 결과를 돌려준다.
 - 다음: 방송사별 편성표·선곡표 원본 찾기 → `src/crawl/sources/*.js` 구현 → 배포 → 앱 연결

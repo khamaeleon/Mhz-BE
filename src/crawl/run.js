@@ -6,7 +6,7 @@
 // 방송사별 수집 원본은 아직 미정이라 sources/ 의 TODO 를 채우면 된다.
 
 import { pool, query, queryOne } from '../db.js';
-import { sources } from './sources/index.js';
+import { getSource } from './sources/index.js';
 
 const job = process.argv[2];
 if (job !== 'schedule' && job !== 'songs') {
@@ -48,7 +48,7 @@ async function crawlSchedule(channels) {
     try {
       let count = 0;
       for (const date of dates) {
-        const slots = await sources[channel.broadcaster].fetchSchedule(channel, date);
+        const slots = await getSource(channel.broadcaster).fetchSchedule(channel, date);
         for (const slot of slots) {
           const programId = slot.program ? await upsertProgram(channel.id, slot.program) : null;
           await query(
@@ -74,7 +74,7 @@ async function crawlSongs(channels) {
   const result = {};
   for (const channel of channels) {
     try {
-      const songs = await sources[channel.broadcaster].fetchRecentSongs(channel);
+      const songs = await getSource(channel.broadcaster).fetchRecentSongs(channel);
       for (const s of songs) {
         await query(
           `insert into songs (channel_id, played_at, title, artist)
