@@ -1,0 +1,21 @@
+{
+  "name": "mhz-be",
+  "version": "1.0.0",
+  "private": true,
+  "description": "메가헤르츠(MHz) API 서버 — 편성표·선곡표·검색",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "migrate": "node --env-file=.env scripts/migrate.js",
+    "crawl:schedule": "node --env-file=.env src/crawl/run.js schedule",
+    "crawl:songs": "node --env-file=.env src/crawl/run.js songs"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "pg": "^8.13.0"
+  }
+}

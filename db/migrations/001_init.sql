@@ -1,5 +1,6 @@
 -- 메가헤르츠(MHz) 초기 스키마
 -- 서버에는 모든 사용자가 같이 보는 방송 데이터만 둔다. 즐겨찾기·설정은 앱(기기)에 저장한다.
+-- 접근 제어는 DB 계정(mhz_app)과 API 서버가 맡는다. 앱은 DB에 직접 붙지 않는다.
 
 create table public.channels (
   id               text primary key,              -- 예: kbs-1radio
@@ -84,22 +85,3 @@ create table public.crawl_runs (
   status      text not null default 'running' check (status in ('running', 'ok', 'error')),
   detail      jsonb
 );
-
--- 읽기는 누구나(anon), 쓰기는 service_role(크롤러·관리자)만
-alter table public.channels       enable row level security;
-alter table public.programs       enable row level security;
-alter table public.schedule_slots enable row level security;
-alter table public.songs          enable row level security;
-alter table public.notices        enable row level security;
-alter table public.faqs           enable row level security;
-alter table public.app_config     enable row level security;
-alter table public.crawl_runs     enable row level security;
-
-create policy "public read" on public.channels       for select using (is_active);
-create policy "public read" on public.programs       for select using (true);
-create policy "public read" on public.schedule_slots for select using (true);
-create policy "public read" on public.songs          for select using (true);
-create policy "public read" on public.notices        for select using (true);
-create policy "public read" on public.faqs           for select using (true);
-create policy "public read" on public.app_config     for select using (true);
--- crawl_runs 는 정책 없음 = anon 접근 불가

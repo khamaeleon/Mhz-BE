@@ -1,11 +1,7 @@
-# Supabase
-supabase/.branches
-supabase/.temp
-supabase/.env
+node_modules/
 .env
 .env.*
 !.env.example
-
-node_modules/
+logs/
 .DS_Store
 *.log

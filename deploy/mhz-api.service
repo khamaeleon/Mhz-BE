@@ -1,0 +1,16 @@
+# systemd 로 띄울 때: sudo cp deploy/mhz-api.service /etc/systemd/system/
+# (User, WorkingDirectory, node 경로를 서버에 맞게 고친 뒤)
+# sudo systemctl daemon-reload && sudo systemctl enable --now mhz-api
+[Unit]
+Description=MHz API server
+After=network-online.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/MHz-BE
+ExecStart=/usr/bin/node --env-file=.env src/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
