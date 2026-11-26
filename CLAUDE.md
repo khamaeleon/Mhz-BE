@@ -22,6 +22,7 @@
 ## 현재 상태
 
 - API·마이그레이션·수집기 뼈대 완료. SQL은 로컬 PostgreSQL 16으로 검증했다.
-- 아직 서버 배포 전. DailyNews 서버의 nginx 구성(호스트/컨테이너)과 API 도메인은 미정.
+- 2026-11-26 배포 완료: DB 서버에 mhz DB·mhz_app 계정·pg_hba 설정, DailyNews 서버(172.31.7.62)에서 docker-compose 로 api·crawler 실행 중.
+- API 도메인·HTTPS(nginx)는 아직 미정. 앱은 아직 API 를 호출하지 않는다.
 - package-lock.json 이 아직 없다. 첫 npm install 후 커밋하고 Dockerfile 을 npm ci 로 바꾼다.
 - 다음: 방송사별 편성표·선곡표 원본 찾기 → `src/crawl/sources/*.js` 구현 → 배포 → 앱 연결
