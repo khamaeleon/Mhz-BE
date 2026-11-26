@@ -99,9 +99,21 @@ git pull && docker compose up -d --build           # 업데이트
 docker compose run --rm api node scripts/migrate.js # 스키마가 바뀐 뒤
 ```
 
-### 3. 외부 공개 (nginx)
+### 3. 외부 공개: `https://mhz.api.adpilot.co.kr`
 
-앱이 API에 접근하려면 DailyNews 서버의 nginx에 `deploy/nginx-mhz.conf`처럼 프록시를 추가하고 HTTPS를 붙입니다. nginx도 컨테이너로 돌고 있다면 `proxy_pass`를 `http://host.docker.internal:4100` 등 그 환경에 맞게 바꿉니다.
+Route 53 의 `mhz.api.adpilot.co.kr` 은 AdPilot 과 같이 쓰는 AWS ALB 를 가리킨다. ALB 의 ACM 인증서가
+`*.api.adpilot.co.kr` 을 포함하므로 HTTPS 는 ALB 가 처리하고, 서버에는 certbot·nginx 가 필요 없다.
+ALB 에 "이 호스트 이름은 DailyNews 서버의 MHz API 로" 규칙만 추가한다. AdPilot 기존 규칙은 건드리지 않는다.
+
+1. DailyNews 서버 `.env` 에 `MHZ_BIND=0.0.0.0` 추가 → `docker compose up -d` (API 가 사설 IP:4100 으로도 열림)
+2. EC2 → 대상 그룹 생성: 대상 유형 인스턴스, HTTP 4100, 대상 = DailyNews 인스턴스(172.31.7.62),
+   상태 검사 경로 `/health`
+3. DailyNews 인스턴스 보안 그룹: 인바운드 TCP 4100 을 **ALB 의 보안 그룹에서만** 허용 (0.0.0.0/0 금지)
+4. EC2 → 로드 밸런서 → AdPilot ALB → HTTPS:443 리스너 → 규칙 추가:
+   조건 `호스트 헤더 = mhz.api.adpilot.co.kr` → 2번 대상 그룹으로 전달. 우선순위는 기존 규칙보다 앞(숫자 작게)
+5. 확인: `curl https://mhz.api.adpilot.co.kr/health` → `{"ok":true}`
+
+ALB 를 쓰지 않고 이 서버 nginx 로 받으려면 DNS 를 이 서버 공인 IP 로 바꾸고 `deploy/nginx-mhz.conf` + certbot 을 쓴다.
 
 ### 로컬 개발 (도커 없이)
 
@@ -113,6 +125,6 @@ npm run migrate && npm run dev
 
 ## 남은 일
 
-- [ ] 방송사별 편성표·선곡표 원본 찾기 → `src/crawl/sources/*.js` 구현 (지금은 빈 배열을 돌려줌)
+- [x] KBS·MBC·SBS 편성표·선곡표 수집기 (`docs/data-sources.md`)
 - [ ] EBS FM 추가
-- [ ] API 도메인·HTTPS 연결 후 앱(MHz-FE)에서 `/channels`, `/channels/:id/now` 연결
+- [ ] ALB 규칙 설정 후 앱 실기기에서 편성·선곡 확인 (앱은 `https://mhz.api.adpilot.co.kr` 로 연결해 둠)
